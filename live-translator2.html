@@ -1,105 +1,12 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>中日即時翻譯</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: sans-serif;
-    background: #0d0d1a;
-    color: #e8e8f0;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 30px 16px;
-  }
-  h1 { font-size: 1.4rem; color: #c8b8ff; text-align: center; margin-bottom: 4px; }
-  .sub { font-size: 0.75rem; color: #4040a0; text-align: center; margin-bottom: 30px; }
+  let recognition = null, isListening = false, isTranslating = false, translateTimer = null, finalText = '', lastResult = '', lastLang = 'ja';
+  const orb = document.getElementById('orb'), statusEl = document.getElementById('status'), sourceBox = document.getElementById('sourceBox'), resultBox = document.getElementById('resultBox'), speakBtn = document.getElementById('speakBtn');
 
-  .orb {
-    width: 110px; height: 110px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #c8b8ff, #6644cc);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 2.4rem; cursor: pointer; border: none;
-    transition: transform 0.2s; margin-bottom: 14px;
-  }
-  .orb.listening { animation: orbPulse 1.4s infinite; background: radial-gradient(circle at 35% 35%, #ff8aaa, #cc2244); }
-  .orb.thinking { animation: orbGlow 1s infinite alternate; background: radial-gradient(circle at 35% 35%, #ffcc88, #cc7722); }
-  @keyframes orbPulse {
-    0%, 100% { box-shadow: 0 0 0 0 #ff6b8a66; transform: scale(1); }
-    50% { box-shadow: 0 0 0 24px #ff6b8a00; transform: scale(1.05); }
-  }
-  @keyframes orbGlow {
-    from { box-shadow: 0 0 10px #ffcc88; }
-    to { box-shadow: 0 0 30px #ffcc88; }
-  }
-
-  .status { font-size: 0.85rem; color: #6060b0; text-align: center; min-height: 22px; margin-bottom: 24px; }
-  .status.listening { color: #ff8aaa; }
-  .status.thinking { color: #ffcc88; }
-  .status.done { color: #88ffcc; }
-
-  .card { width: 100%; max-width: 440px; background: #1a1a2e; border-radius: 18px; padding: 16px; margin-bottom: 12px; }
-  .card-label { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: #4040a0; margin-bottom: 8px; }
-  .text-display { min-height: 80px; font-size: 1.05rem; line-height: 1.7; word-break: break-all; white-space: pre-wrap; }
-  .text-display.source { color: #e8e8f0; }
-  .text-display.result { color: #c8b8ff; font-size: 1.1rem; }
-  .placeholder { color: #333360; font-style: italic; }
-  .interim { color: #6060a0; }
-
-  .speak-btn {
-    margin-top: 10px; padding: 8px 18px;
-    background: #2a2a4a; color: #c8b8ff;
-    border: none; border-radius: 10px;
-    font-size: 0.85rem; cursor: pointer; font-family: inherit;
-  }
-  .speak-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-</style>
-</head>
-<body>
-
-<h1>中日即時翻譯</h1>
-<p class="sub">免費 · 免持 · 自動偵測語言</p>
-
-<button class="orb" id="orb" onclick="toggleListen()">🎤</button>
-<div class="status" id="status">點擊開始，之後全程免持</div>
-
-<div class="card">
-  <div class="card-label">偵測到的語音</div>
-  <div class="text-display source" id="sourceBox"><span class="placeholder">說話後顯示…</span></div>
-</div>
-
-<div class="card">
-  <div class="card-label">翻譯結果</div>
-  <div class="text-display result" id="resultBox"><span class="placeholder">翻譯結果…</span></div>
-  <button class="speak-btn" id="speakBtn" onclick="speakAgain()" disabled>🔊 再次朗讀</button>
-</div>
-
-<script>
-  let recognition = null;
-  let isListening = false;
-  let translateTimer = null;
-  let finalText = '';
-  let lastResult = '';
-  let lastLang = 'ja';
-
-  const orb = document.getElementById('orb');
-  const statusEl = document.getElementById('status');
-  const sourceBox = document.getElementById('sourceBox');
-  const resultBox = document.getElementById('resultBox');
-  const speakBtn = document.getElementById('speakBtn');
-
-  function toggleListen() {
-    isListening ? stopListen() : startListen();
-  }
+  function toggleListen() { isListening ? stopListen() : startListen(); }
 
   function startListen() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { setStatus('❌ 請用 Chrome 瀏覽器', ''); return; }
-
+    if(!SR) { setStatus('❌ 請用 Chrome', ''); return; }
+    
     finalText = '';
     recognition = new SR();
     recognition.lang = 'zh-TW';
@@ -110,18 +17,19 @@
       isListening = true;
       orb.classList.add('listening');
       orb.textContent = '⏹';
-      setStatus('🎤 聆聽中… 說中文或日文', 'listening');
+      setStatus('🎤 聆聽中…', 'listening');
     };
 
     recognition.onresult = (e) => {
       let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+      for(let i = e.resultIndex; i < e.results.length; i++) {
+        if(e.results[i].isFinal) finalText += e.results[i][0].transcript;
         else interim += e.results[i][0].transcript;
       }
-      sourceBox.innerHTML = finalText + (interim ? `<span class="interim">${interim}</span>` : '');
+      sourceBox.innerHTML = finalText + (interim ? `<span style="color:#6060a0">${interim}</span>` : '');
+      
       clearTimeout(translateTimer);
-      if (finalText.trim()) {
+      if(finalText.trim()) {
         translateTimer = setTimeout(() => {
           doTranslate(finalText.trim());
           finalText = '';
@@ -130,81 +38,91 @@
     };
 
     recognition.onerror = (e) => {
-      if (e.error === 'no-speech' || e.error === 'aborted') return;
+      if(e.error === 'no-speech' || e.error === 'aborted') return;
       setStatus('⚠️ ' + e.error, '');
     };
 
     recognition.onend = () => {
-      if (isListening) setTimeout(() => { if (isListening) recognition.start(); }, 300);
+      if(isListening && !isTranslating) {
+        setTimeout(() => {
+          if(isListening && !isTranslating) {
+            try { recognition.start(); } catch(err) {}
+          }
+        }, 300);
+      }
     };
 
-    recognition.start();
+    try { recognition.start(); } catch(err) {}
   }
 
   function stopListen() {
     isListening = false;
-    if (recognition) recognition.stop();
+    isTranslating = false;
+    if(recognition) recognition.stop();
     orb.classList.remove('listening');
+    orb.classList.remove('thinking');
     orb.textContent = '🎤';
-    setStatus('已停止 · 點擊重新開始', '');
+    setStatus('已停止', '');
   }
 
   async function doTranslate(text) {
+    isTranslating = true; 
+    if(recognition) recognition.abort(); 
+
     orb.classList.remove('listening');
     orb.classList.add('thinking');
     orb.textContent = '⏳';
     setStatus('翻譯中…', 'thinking');
 
-    // 自動偵測：有平假名/片假名就是日文
-    const isJapanese = /[\u3040-\u30ff]/.test(text);
-    const sl = isJapanese ? 'ja' : 'zh-TW';
-    const tl = isJapanese ? 'zh-TW' : 'ja';
+    const isJa = /[\u3040-\u30ff]/.test(text);
+    const sl = isJa ? 'ja' : 'zh-TW';
+    const tl = isJa ? 'zh-TW' : 'ja';
     lastLang = tl;
 
     try {
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sl}|${tl}`;
-      const res = await fetch(url);
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sl}|${tl}`);
       const data = await res.json();
-      const translated = data.responseData?.translatedText || '';
-
-      if (!translated) throw new Error('無翻譯結果');
-
-      lastResult = translated;
-      resultBox.textContent = translated;
+      const t = data.responseData?.translatedText || '';
+      if(!t) throw new Error();
+      
+      lastResult = t;
+      resultBox.textContent = t;
       speakBtn.disabled = false;
-
-      orb.classList.remove('thinking');
-      orb.classList.add('listening');
-      orb.textContent = '⏹';
-      setStatus('🎤 聆聽中… 說中文或日文', 'listening');
-
-      speak(translated, tl === 'ja' ? 'ja-JP' : 'zh-TW');
-
-    } catch (err) {
-      setStatus('❌ 翻譯失敗，請檢查網路', '');
-      orb.classList.remove('thinking');
-      orb.classList.add('listening');
-      orb.textContent = '⏹';
+      
+      speak(t, tl === 'ja' ? 'ja-JP' : 'zh-TW');
+    } catch {
+      setStatus('❌ 翻譯失敗', '');
+      resumeListening(); 
     }
   }
 
   function speak(text, lang) {
-    const utt = new SpeechSynthesisUtterance(text);
-    utt.lang = lang;
-    utt.rate = 0.9;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.rate = 0.9;
+    
+    u.onend = resumeListening;
+    u.onerror = resumeListening;
+    
     window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utt);
+    window.speechSynthesis.speak(u);
+  }
+
+  function resumeListening() {
+    isTranslating = false; 
+    if(isListening) {
+      orb.classList.remove('thinking');
+      orb.classList.add('listening');
+      orb.textContent = '⏹';
+      setStatus('🎤 聆聽中…', 'listening');
+      try { recognition.start(); } catch(err) {}
+    }
   }
 
   function speakAgain() {
-    if (!lastResult) return;
-    speak(lastResult, lastLang === 'ja' ? 'ja-JP' : 'zh-TW');
+    if(lastResult) {
+      isTranslating = true;
+      if(recognition) recognition.abort(); 
+      speak(lastResult, lastLang === 'ja' ? 'ja-JP' : 'zh-TW');
+    }
   }
-
-  function setStatus(msg, type) {
-    statusEl.textContent = msg;
-    statusEl.className = 'status ' + (type || '');
-  }
-</script>
-</body>
-</html>
